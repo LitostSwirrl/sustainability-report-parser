@@ -1,16 +1,17 @@
 """
 Field Collection Analyzer for Sustainability Reports.
 
-Uses Google Gemini API to extract structured data from PDF reports.
+Uses Google Gemini API (google.genai) to extract structured data from PDF reports.
 """
 
 import os
 import time
 import random
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from .config import MODEL_NAME, GEMINI_API_KEY, MAX_RETRIES, BASE_RETRY_DELAY
 from .utils import get_logger, log_timing, SessionSummary
@@ -39,8 +40,7 @@ class FieldCollectionAnalyzer:
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is not configured")
 
-        genai.configure(api_key=GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(MODEL_NAME)
+        self.client = genai.Client(api_key=GEMINI_API_KEY)
         self.cache_manager = cache_manager or CacheManager()
         self.session_summary = SessionSummary()
 
@@ -149,6 +149,9 @@ class FieldCollectionAnalyzer:
         except Exception as e:
             self.logger.error(f"Analysis failed: {e}")
             raise
+        finally:
+            # Always delete local PDF after processing to save space
+            PDFProcessor.delete_local_pdf(pdf_path)
 
     def analyze_company_report(
         self,
@@ -182,14 +185,27 @@ class FieldCollectionAnalyzer:
         try:
             # Get field definitions for this company's industry
             final_fields = get_final_fields(company_info.get('industry', ''))
-            total_fields_count = len(final_fields)
 
             # Build analysis prompt
             prompt = self._build_field_collection_prompt(company_info, final_fields)
 
-            # Make API call
+            # Make API call using google.genai
             self.session_summary.record_api_call()
-            response = self.model.generate_content([prompt, pdf_file])
+            response = self.client.models.generate_content(
+                model=MODEL_NAME,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_uri(
+                                file_uri=pdf_file.uri,
+                                mime_type="application/pdf"
+                            ),
+                            types.Part.from_text(text=prompt)
+                        ]
+                    )
+                ]
+            )
 
             if response and response.text:
                 results = self._parse_field_collection_response(
@@ -229,10 +245,9 @@ class FieldCollectionAnalyzer:
             raise
 
         finally:
-            # Clean up uploaded file
+            # Clean up uploaded file from Gemini
             try:
-                genai.delete_file(pdf_file.name)
-                self.logger.info(f"Cleaned up uploaded file: {pdf_file.name}")
+                PDFProcessor.delete_gemini_file(pdf_file.name)
             except Exception:
                 pass
 
@@ -241,7 +256,7 @@ class FieldCollectionAnalyzer:
         company_info: Dict[str, str],
         final_fields: Dict
     ) -> str:
-        """Build the field collection analysis prompt."""
+        """Build the field collection analysis prompt - IDENTICAL to original notebook."""
         # Build field details
         fields_detail = ""
         sorted_keys = sorted(final_fields.keys(), key=lambda x: int(x))

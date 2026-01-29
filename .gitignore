@@ -60,5 +60,8 @@ token.json
 *.temp
 .cache/
 
+# Cache directory (analysis results cache)
+cache/
+
 # PDF files (may be large)
 *.pdf

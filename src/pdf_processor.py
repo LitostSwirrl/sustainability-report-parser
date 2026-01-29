@@ -11,16 +11,16 @@ import os
 import re
 import json
 from pathlib import Path
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 
 import requests
 import pandas as pd
 import gspread
-import google.generativeai as genai
+from google import genai
 
 from .config import (
-    CACHE_DIR, COMPANY_LIST_SHEET_ID, OUTPUT_SHEET_ID,
-    COMPANY_LIST_SHEET_NAME, OUTPUT_SHEET_NAME
+    CACHE_DIR, OUTPUT_DIR, COMPANY_LIST_SHEET_ID, OUTPUT_SHEET_ID,
+    COMPANY_LIST_SHEET_NAME, OUTPUT_SHEET_NAME, GEMINI_API_KEY
 )
 from .utils import get_logger
 
@@ -28,8 +28,17 @@ from .utils import get_logger
 class PDFProcessor:
     """PDF processing class - uploads PDFs to Gemini for analysis."""
 
+    _client = None
+
+    @classmethod
+    def get_client(cls):
+        """Get or create Gemini client."""
+        if cls._client is None:
+            cls._client = genai.Client(api_key=GEMINI_API_KEY)
+        return cls._client
+
     @staticmethod
-    def upload_pdf_to_gemini(pdf_path: str) -> Optional[Any]:
+    def upload_pdf_to_gemini(pdf_path: str):
         """
         Upload PDF file to Gemini.
 
@@ -39,14 +48,66 @@ class PDFProcessor:
         Returns:
             Gemini file object or None if upload fails
         """
+        import shutil
+        import tempfile
+
         logger = get_logger()
+        temp_path = None
         try:
-            pdf_file = genai.upload_file(pdf_path)
+            client = PDFProcessor.get_client()
+
+            # Handle non-ASCII filenames by copying to temp file with ASCII name
+            original_name = os.path.basename(pdf_path)
+            try:
+                original_name.encode('ascii')
+                # Filename is ASCII-safe, upload directly
+                pdf_file = client.files.upload(file=pdf_path)
+            except UnicodeEncodeError:
+                # Filename has non-ASCII chars, copy to temp file
+                temp_dir = tempfile.mkdtemp()
+                temp_path = os.path.join(temp_dir, "upload.pdf")
+                shutil.copy2(pdf_path, temp_path)
+                pdf_file = client.files.upload(file=temp_path)
+
             logger.info(f"PDF uploaded successfully: {pdf_file.display_name}")
             return pdf_file
         except Exception as e:
             logger.error(f"PDF upload failed: {e}")
             return None
+        finally:
+            # Clean up temp file if created
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                    os.rmdir(os.path.dirname(temp_path))
+                except Exception:
+                    pass
+
+    @staticmethod
+    def delete_gemini_file(file_name: str) -> bool:
+        """Delete uploaded file from Gemini."""
+        logger = get_logger()
+        try:
+            client = PDFProcessor.get_client()
+            client.files.delete(name=file_name)
+            logger.info(f"Cleaned up Gemini file: {file_name}")
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def delete_local_pdf(pdf_path: str) -> bool:
+        """Delete local PDF file after processing to save space."""
+        logger = get_logger()
+        try:
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+                logger.info(f"Deleted local PDF: {pdf_path}")
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"Could not delete local PDF: {e}")
+            return False
 
     @staticmethod
     def get_company_info_from_filename(filename: str) -> Dict[str, str]:
@@ -54,12 +115,6 @@ class PDFProcessor:
         Parse company info from filename (backwards compatible).
 
         Expected format: 產業類別_公司代碼_公司簡稱_永續報告書_西元年份.pdf
-
-        Args:
-            filename: PDF filename
-
-        Returns:
-            Dictionary with company info or empty dict if parsing fails
         """
         logger = get_logger()
         try:
@@ -82,15 +137,7 @@ class PDFProcessor:
 
     @staticmethod
     def get_company_info_from_sheet_data(row_data: Dict) -> Dict[str, str]:
-        """
-        Parse company info from sheet data.
-
-        Args:
-            row_data: Dictionary containing row data from Google Sheets
-
-        Returns:
-            Dictionary with standardized company info
-        """
+        """Parse company info from sheet data."""
         return {
             'company_code': str(row_data.get('公司代碼', '')),
             'company_name': str(row_data.get('公司簡稱', '')),
@@ -108,15 +155,7 @@ class PDFProcessor:
 
     @staticmethod
     def extract_drive_file_id(drive_url: str) -> Optional[str]:
-        """
-        Extract file ID from Google Drive URL.
-
-        Args:
-            drive_url: Google Drive sharing URL
-
-        Returns:
-            File ID string or None if extraction fails
-        """
+        """Extract file ID from Google Drive URL."""
         logger = get_logger()
         try:
             patterns = [
@@ -144,35 +183,21 @@ class PDFProcessor:
     ) -> Optional[str]:
         """
         Download PDF file from Google Drive.
-
-        Args:
-            file_id: Google Drive file ID
-            company_info: Company information dictionary
-            cache_dir: Directory to save downloaded file
-
-        Returns:
-            Local file path or None if download fails
+        Note: Files are temporary and will be deleted after processing.
         """
         logger = get_logger()
         cache_dir = cache_dir or str(CACHE_DIR)
 
         try:
-            # Build filename
             filename = (
                 f"{company_info['industry']}_{company_info['company_code']}_"
                 f"{company_info['company_name']}_永續報告書_{company_info['year']}.pdf"
             )
             local_path = os.path.join(cache_dir, filename)
 
-            # If file exists and has reasonable size, use it
-            if os.path.exists(local_path) and os.path.getsize(local_path) > 1000:
-                logger.info(f"File already exists, using cached: {filename}")
-                return local_path
-
-            # Build download URL
+            # Always re-download (since we delete after processing)
             download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
-            # Download file
             response = requests.get(download_url, stream=True, timeout=120)
 
             if response.status_code == 200:
@@ -195,35 +220,19 @@ class PDFProcessor:
 
 
 class CacheManager:
-    """Local cache manager for analysis results."""
+    """Local cache manager for analysis results (JSON cache, not PDFs)."""
 
     def __init__(self, cache_dir: str = None):
-        """
-        Initialize cache manager.
-
-        Args:
-            cache_dir: Directory for cache files
-        """
         self.cache_dir = Path(cache_dir or CACHE_DIR)
         self.cache_dir.mkdir(exist_ok=True)
 
     def get_cache_path(self, company_code: str, year: str) -> Path:
-        """Get cache file path for a company/year combination."""
         return self.cache_dir / f"{company_code}_{year}_analysis.json"
 
     def is_cached(self, company_code: str, year: str) -> bool:
-        """Check if analysis result is cached."""
         return self.get_cache_path(company_code, year).exists()
 
     def save_cache(self, company_code: str, year: str, data: Dict) -> None:
-        """
-        Save analysis result to cache.
-
-        Args:
-            company_code: Company stock code
-            year: Report year
-            data: Analysis result data
-        """
         logger = get_logger()
         cache_path = self.get_cache_path(company_code, year)
 
@@ -233,16 +242,6 @@ class CacheManager:
         logger.info(f"Cache saved: {cache_path}")
 
     def load_cache(self, company_code: str, year: str) -> Optional[Dict]:
-        """
-        Load analysis result from cache.
-
-        Args:
-            company_code: Company stock code
-            year: Report year
-
-        Returns:
-            Cached data dictionary or None if not found
-        """
         logger = get_logger()
         cache_path = self.get_cache_path(company_code, year)
 
@@ -256,16 +255,6 @@ class CacheManager:
         return None
 
     def clear_cache(self, company_code: str = None, year: str = None) -> int:
-        """
-        Clear cache files.
-
-        Args:
-            company_code: Optional - clear only this company's cache
-            year: Optional - clear only this year's cache
-
-        Returns:
-            Number of files deleted
-        """
         logger = get_logger()
         deleted = 0
 
@@ -292,24 +281,10 @@ class SheetsManager:
     """Google Sheets manager for field collection format."""
 
     def __init__(self, gc: gspread.Client):
-        """
-        Initialize sheets manager.
-
-        Args:
-            gc: Authenticated gspread client
-        """
         self.gc = gc
+        self._combined_csv_path = None
 
     def get_company_list(self, filter_to_analyze: bool = True) -> pd.DataFrame:
-        """
-        Get company list from Google Sheets.
-
-        Args:
-            filter_to_analyze: If True, only return companies marked for analysis
-
-        Returns:
-            DataFrame with company data
-        """
         logger = get_logger()
         try:
             sheet = self.gc.open_by_key(COMPANY_LIST_SHEET_ID)
@@ -331,12 +306,6 @@ class SheetsManager:
             return pd.DataFrame()
 
     def get_existing_results(self) -> pd.DataFrame:
-        """
-        Get existing analysis results from Google Sheets.
-
-        Returns:
-            DataFrame with existing results
-        """
         logger = get_logger()
         try:
             sheet = self.gc.open_by_key(OUTPUT_SHEET_ID)
@@ -357,24 +326,12 @@ class SheetsManager:
         year: str,
         existing_results: pd.DataFrame = None
     ) -> str:
-        """
-        Check company processing status.
-
-        Args:
-            company_code: Company stock code
-            year: Report year
-            existing_results: Pre-loaded results DataFrame (recommended)
-
-        Returns:
-            Status string: 'not_processed', 'incomplete', 'failed', or 'completed'
-        """
         if existing_results is None:
             existing_results = self.get_existing_results()
 
         if existing_results.empty:
             return 'not_processed'
 
-        # Filter for this company and year
         company_results = existing_results[
             (existing_results['公司代碼'].astype(str) == str(company_code)) &
             (existing_results['西元年份'].astype(str) == str(year))
@@ -383,7 +340,6 @@ class SheetsManager:
         if company_results.empty:
             return 'not_processed'
 
-        # Check for parsing failures
         failed_conditions = (
             company_results['補充說明'].str.contains('解析失敗', na=False) |
             company_results['欄位數值'].str.contains('解析失敗', na=False)
@@ -392,20 +348,12 @@ class SheetsManager:
         if failed_conditions.any():
             return 'failed'
 
-        # Check field count (should have 60 fields)
         if len(company_results) < 60:
             return 'incomplete'
 
         return 'completed'
 
     def delete_company_results(self, company_code: str, year: str) -> None:
-        """
-        Delete existing results for a company.
-
-        Args:
-            company_code: Company stock code
-            year: Report year
-        """
         logger = get_logger()
         try:
             sheet = self.gc.open_by_key(OUTPUT_SHEET_ID)
@@ -413,7 +361,6 @@ class SheetsManager:
 
             all_data = worksheet.get_all_records()
 
-            # Filter out rows for this company/year
             headers = [
                 '西元年份', '公司代碼', '公司簡稱', '欄位編號', '欄位名稱',
                 '欄位數值', '欄位單位', '補充說明', '參考頁數', '處理時間'
@@ -425,7 +372,6 @@ class SheetsManager:
                         str(row.get('西元年份', '')) == str(year)):
                     filtered_data.append([row.get(h, '') for h in headers])
 
-            # Clear and rewrite
             worksheet.clear()
             worksheet.append_row(headers)
             if filtered_data:
@@ -437,12 +383,6 @@ class SheetsManager:
             logger.error(f"Failed to delete results: {e}")
 
     def append_results(self, results: List[Dict]) -> None:
-        """
-        Append analysis results to Google Sheets.
-
-        Args:
-            results: List of field result dictionaries
-        """
         logger = get_logger()
         try:
             sheet = self.gc.open_by_key(OUTPUT_SHEET_ID)
@@ -459,7 +399,6 @@ class SheetsManager:
                 ]
                 worksheet.append_row(headers)
 
-            # Convert results to rows
             rows_to_add = []
             for result in results:
                 row = [
@@ -478,7 +417,7 @@ class SheetsManager:
 
             if rows_to_add:
                 worksheet.append_rows(rows_to_add)
-                logger.info(f"Appended {len(rows_to_add)} results")
+                logger.info(f"Appended {len(rows_to_add)} results to Google Sheets")
 
         except Exception as e:
             logger.error(f"Failed to write results: {e}")
@@ -486,28 +425,38 @@ class SheetsManager:
     def save_results_to_csv(
         self,
         results: List[Dict],
-        output_path: str = None
-    ) -> str:
+        company_code: str,
+        company_name: str,
+        year: str
+    ) -> tuple:
         """
-        Save results to local CSV file.
-
-        Args:
-            results: List of field result dictionaries
-            output_path: Output file path (optional)
+        Save results to TWO CSV files:
+        1. Per-company CSV: output/{company_code}_{company_name}_{year}.csv
+        2. Combined CSV: output/combined_results.csv (appends)
 
         Returns:
-            Path to saved CSV file
+            Tuple of (company_csv_path, combined_csv_path)
         """
         logger = get_logger()
-        from .config import OUTPUT_DIR
-        from datetime import datetime
+        output_dir = Path(OUTPUT_DIR)
+        output_dir.mkdir(exist_ok=True)
 
-        if output_path is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = OUTPUT_DIR / f"results_{timestamp}.csv"
-
+        # 1. Per-company CSV
+        company_csv = output_dir / f"{company_code}_{company_name}_{year}.csv"
         df = pd.DataFrame(results)
-        df.to_csv(output_path, index=False, encoding='utf-8-sig')
-        logger.info(f"Results saved to: {output_path}")
+        df.to_csv(company_csv, index=False, encoding='utf-8-sig')
+        logger.info(f"Company CSV saved: {company_csv}")
 
-        return str(output_path)
+        # 2. Combined CSV (append mode)
+        combined_csv = output_dir / "combined_results.csv"
+
+        if combined_csv.exists():
+            # Append without header
+            df.to_csv(combined_csv, mode='a', header=False, index=False, encoding='utf-8-sig')
+        else:
+            # Create with header
+            df.to_csv(combined_csv, index=False, encoding='utf-8-sig')
+
+        logger.info(f"Combined CSV updated: {combined_csv}")
+
+        return str(company_csv), str(combined_csv)

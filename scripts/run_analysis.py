@@ -64,7 +64,8 @@ def process_companies(
     analyzer: FieldCollectionAnalyzer,
     limit: int = None,
     company_code: str = None,
-    dry_run: bool = False
+    dry_run: bool = False,
+    force: bool = False
 ) -> None:
     """
     Process companies from Google Sheets.
@@ -75,6 +76,7 @@ def process_companies(
         limit: Maximum number of companies to process
         company_code: Specific company code to process
         dry_run: If True, show what would be processed without making API calls
+        force: If True, reprocess even completed companies
     """
     logger = get_logger()
 
@@ -114,14 +116,18 @@ def process_companies(
             code, year, existing_results_df
         )
 
-        if status == 'completed':
+        if status == 'completed' and not force:
             logger.info(f"✅ {name} ({code}): Already processed")
+        elif status == 'completed' and force:
+            companies_to_process.append((row, 'force_reprocess'))
+            logger.info(f"🔄 {name} ({code}): Force reprocessing")
         else:
             companies_to_process.append((row, status))
             status_emoji = {
                 'not_processed': '🆕',
                 'incomplete': '⚠️',
-                'failed': '❌'
+                'failed': '❌',
+                'force_reprocess': '🔄'
             }
             logger.info(f"{status_emoji.get(status, '❓')} {name} ({code}): {status}")
 
@@ -143,7 +149,8 @@ def process_companies(
         status_emoji = {
             'not_processed': '🆕 New',
             'incomplete': '⚠️ Incomplete',
-            'failed': '❌ Failed'
+            'failed': '❌ Failed',
+            'force_reprocess': '🔄 Force'
         }
         print(f"{idx:2d}. {status_emoji[status]}: {row['公司簡稱']} ({row['公司代碼']}) - {row['年度']}")
         print(f"    File size: {row.get('檔案大小(MB)', 'Unknown')}MB")
@@ -179,7 +186,7 @@ def process_companies(
                 continue
 
             # Delete old results if reprocessing
-            if status in ['incomplete', 'failed']:
+            if status in ['incomplete', 'failed', 'force_reprocess']:
                 logger.info(f"Deleting old results for {row['公司簡稱']}")
                 sheets_manager.delete_company_results(code, year)
 
@@ -190,8 +197,13 @@ def process_companies(
                 # Save to sheets
                 sheets_manager.append_results(results)
 
-                # Also save to local CSV backup
-                sheets_manager.save_results_to_csv(results)
+                # Also save to local CSV backup (per-company + combined)
+                company_csv, combined_csv = sheets_manager.save_results_to_csv(
+                    results,
+                    code,
+                    row['公司簡稱'],
+                    year
+                )
 
                 successful_count += 1
                 logger.info(f"✅ Successfully processed: {row['公司簡稱']}")
@@ -234,6 +246,11 @@ def main():
         action="store_true",
         help="Enable verbose output"
     )
+    parser.add_argument(
+        "--force", "-f",
+        action="store_true",
+        help="Force reprocess even if already completed"
+    )
 
     args = parser.parse_args()
 
@@ -265,7 +282,8 @@ def main():
             analyzer=analyzer,
             limit=args.limit,
             company_code=args.company,
-            dry_run=args.dry_run
+            dry_run=args.dry_run,
+            force=args.force
         )
 
     except FileNotFoundError as e:
