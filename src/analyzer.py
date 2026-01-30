@@ -190,6 +190,7 @@ class FieldCollectionAnalyzer:
             prompt = self._build_field_collection_prompt(company_info, final_fields)
 
             # Make API call using google.genai
+            # Note: Order matches notebooks - prompt first, then PDF
             self.session_summary.record_api_call()
             response = self.client.models.generate_content(
                 model=MODEL_NAME,
@@ -197,11 +198,11 @@ class FieldCollectionAnalyzer:
                     types.Content(
                         role="user",
                         parts=[
+                            types.Part.from_text(text=prompt),
                             types.Part.from_uri(
                                 file_uri=pdf_file.uri,
                                 mime_type="application/pdf"
-                            ),
-                            types.Part.from_text(text=prompt)
+                            )
                         ]
                     )
                 ]
