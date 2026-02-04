@@ -27,8 +27,8 @@ from typing import Dict
 # ==========================================
 
 BASE_FIELDS = {
-    "1": {"name": "此份永續報告的邊界", "description": "主要用來判斷報告書的資料範圍，可能包含統計廠區、事業單位、年份等範圍資訊，以文字紀錄即可", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "報告書邊界", "category": "報告書邊界"},
-    "2": {"name": "是否承諾淨零排放或碳中和", "description": "請將企業針對淨零承諾的文字敘述重點節錄並輸出，請勿改寫。若無明確承諾，請填「無承諾」。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候承諾"},
+    "1": {"name": "此份永續報告的邊界", "description": "報告書的資料範圍。請簡潔列出：1) 主體公司名稱 2) 涵蓋廠區/據點（若有列出）。限50字以內，不需包含時間範圍。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "報告書邊界", "category": "報告書邊界"},
+    "2": {"name": "是否承諾淨零排放或碳中和", "description": "若有淨零/碳中和承諾，請節錄關鍵句（50字以內），包含目標年份。若無明確承諾，填「無承諾」。不需完整引用，只需核心內容。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候承諾"},
     "3": {"name": "預計達成淨零排放／碳中和年份", "description": "請只填入西元年份，若沒有明確承諾，請留空。若原始資料為民國年份，請協助轉換。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候承諾"},
     "4": {"name": "是否設定中期溫室氣體絕對減量目標", "description": "企業是否設定了在 2030 年的中期減量目標或檢核點？", "data_format": "boolean", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候承諾"},
     "5": {"name": "中期減量目標年設定", "description": "企業設定的中期（無論是否 2030）減量年份？請只填入年份，若沒有明確設定，請留空。若有多個目標年，這裏填最近的目標年，並在 [補充說明] 中敘明所有目標年。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候承諾"},
@@ -51,7 +51,7 @@ BASE_FIELDS = {
     "22": {"name": "再生能源目標年設定", "description": "請只填入目標年份（西元年）。若未提及或未設定，請留空。若目標年為 2050，請視為沒有設定目標並留空。", "data_format": "integer", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
     "23": {"name": "再生能源目標值（百分比）", "description": "請填入目標值的數字，可包含小數點", "data_format": "decimal", "unit": "瓩（KW）", "precision": "0.001", "aspect": "氣候指標", "category": "氣候行動"},
     "24": {"name": "是否取得RE100認證？", "description": "請判斷企業之再生能源目標，是否取得RE100目標認證", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
-    "25": {"name": "是否說明關鍵減量策略", "description": "通常會製圖/表說明特定年區間的減碳策略，甚至寫出該策略的減碳預估比例", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
+    "25": {"name": "是否說明關鍵減量策略", "description": "列舉公司主要減碳策略（限5項以內）。格式：「策略1、策略2、策略3」。每項策略用最簡短的名詞描述（如「燃煤改天然氣」「太陽能發電」），不需詳細說明。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
     "26": {"name": "是否揭露 2022 - 2024 年溫室氣體排放資料", "description": "通常可於最後面的附錄查詢得到", "data_format": "boolean", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "資料透明度"},
     "27": {"name": "類別一（值）", "description": "此欄位收集溫室氣體排放量中，範疇一（直接溫室氣體排放）的值。<br>若公司有給加總值，請直接填寫總額，但請注意不包含國外／海外廠。若公司給的是個別工廠，請協助進行加總（國外／海外工廠不計）。<br>若沒有 2024 年資料，請於補充說明註記。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "氣候指標", "category": "資料透明度"},
     "28": {"name": "類別二（值）", "description": "此欄位收集溫室氣體排放量中，範疇二（輸入能源的間接溫室氣體排放）的值。<br>若公司有給加總值，請直接填寫總額，但請注意不包含國外／海外廠。若公司給的是個別工廠，請協助進行加總（國外／海外工廠不計）。<br>若沒有 2024 年資料，請於補充說明註記。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "氣候指標", "category": "資料透明度"},
@@ -61,9 +61,9 @@ BASE_FIELDS = {
     "32": {"name": "類別六（值）", "description": "此欄位收集溫室氣體排放量中，類別六的值。（由其他來源產生的間接溫室氣體排放）的值<br>若公司有給加總值，請直接填寫總額，但請注意不包含國外／海外廠。若公司給的是個別工廠，請協助進行加總（國外／海外工廠不計）。<br>若沒有 2024 年資料，請於補充說明註記。<br>因目前多數公司並未採用新版的碳排分類方式，所以若沒有找到，可以直接選[無法填答]", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "氣候指標", "category": "資料透明度"},
     "33": {"name": "範疇三（值）", "description": "此欄位收集溫室氣體排放量中，範疇三（其他間接溫室氣體排放）的值。<br>若公司有給範疇三直接加總值，請直接填寫總額，但請注意不包含國外／海外廠。<br>若公司給的是類別三到類別六，請協助加總類別三到類別六。<br>若公司寫到類別十五，請協助加總類別三到類別十五。<br>若公司給的是個別工廠，請協助進行加總（國外／海外工廠不計）。<br>若沒有 2024 年資料，請於補充說明註記。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "氣候指標", "category": "資料透明度"},
     "34": {"name": "是否設定範疇三減量目標", "description": "判斷公司是否針對範疇三（Scope 3）設定減量目標或規劃。填答只有 True/False 兩種可能性，無法判斷時請留空。", "data_format": "boolean", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "資料透明度"},
-    "35": {"name": "範疇三減量目標實際作為", "description": "公司以什麼方式進行範疇三的溫室氣體排放減量", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "資料透明度"},
+    "35": {"name": "範疇三減量目標實際作為", "description": "公司針對範疇三的減碳作為（限3項以內）。格式：「作為1、作為2、作為3」。若無具體作為，留空。", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "資料透明度"},
     "36": {"name": "是否揭露各項能源使用細項", "description": "是否揭露 2024 年用的各種能源，數值為 True or False", "data_format": "boolean", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
-    "37": {"name": "2024年度使用的各種能源項目", "description": "2024 年用的各種能源，通常可在最後面的附錄查詢得到，請寫出各細項數值。", "data_format": "string", "unit": "以報告書原始格式", "precision": "0.0001", "aspect": "氣候指標", "category": "氣候行動"},
+    "37": {"name": "2024年度使用的各種能源項目", "description": "列出2024年各能源使用量。固定格式：「電力: X度; 天然氣: X立方公尺; 柴油: X公秉」依此類推。數值不含千分位。按照報告書中出現的順序列出。", "data_format": "string", "unit": "以報告書原始格式", "precision": "0.0001", "aspect": "氣候指標", "category": "氣候行動"},
     "38": {"name": "再生能源使用佔總發電量（百分比）", "description": "意指透過利用再生能源所產生之發電量，佔總發電量的比例。通常可於最後面附錄查詢得到", "data_format": "decimal", "unit": "", "precision": "0.000001", "aspect": "氣候指標", "category": "氣候行動"},
     "39": {"name": "再生能源使用來源（自發自用、購電協議、再生能源憑證）", "description": "公司使用的再生能源來源是什麼？", "data_format": "string", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "氣候行動"},
     "40": {"name": "是否生產支持轉型至低碳經濟之產品/服務", "description": "公司是否說明有生產或進行低碳經濟相關的產品或服務內容，如按照特定標準或指引定義低碳產品或服務，請在補充說明中註明", "data_format": "boolean", "unit": "NA", "precision": "NA", "aspect": "氣候指標", "category": "資料透明度"},
@@ -90,6 +90,94 @@ SCOPE3_FIELDS = {
     "54": {"name": "Scope 3 類別 13 (下游租賃資產)", "description": "請搜尋報告書中關於溫室氣體盤查的章節，針對 GHG Protocol 定義的類別 13 進行數值萃取。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "環境", "category": "Scope 3"},
     "55": {"name": "Scope 3 類別 14 (特許經營)", "description": "請搜尋報告書中關於溫室氣體盤查的章節，針對 GHG Protocol 定義的類別 14 進行數值萃取。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "環境", "category": "Scope 3"},
     "56": {"name": "Scope 3 類別 15 (投資)", "description": "請搜尋報告書中關於溫室氣體盤查的章節，針對 GHG Protocol 定義的類別 15 進行數值萃取。金融業請特別注意此欄位，通常為投融資組合排放。", "data_format": "decimal", "unit": "公噸CO2e", "precision": "0.0001", "aspect": "環境", "category": "Scope 3"}
+}
+
+# ==========================================
+# 2.5 新增：勞動安全與排碳欄位 (201-209)
+# ==========================================
+
+LABOR_EMISSIONS_FIELDS = {
+    "201": {
+        "name": "失能傷害頻率(LTIFR)",
+        "description": "報告年度的失能傷害頻率(Lost Time Injury Frequency Rate)為何？請分別列出男性與女性數值。計算公式通常為：(失能傷害件數 × 1,000,000) / 總工時。若報告書僅提供整體數值，請填寫整體數值並在補充說明中註記。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "勞動安全",
+        "category": "職業安全"
+    },
+    "202": {
+        "name": "職業傷害件數",
+        "description": "報告年度發生的職業傷害總件數為何？請分別列出死亡、永久失能、暫時失能件數。格式範例：死亡0件、永久失能0件、暫時失能5件。若報告書有依性別分類，請一併列出。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "勞動安全",
+        "category": "職業安全"
+    },
+    "203": {
+        "name": "重大職業安全意外事件",
+        "description": "報告年度是否有發生重大職業安全意外事件？若有，請簡述事件概況與處理措施。重大事件定義通常包含：造成死亡、永久失能、或多人受傷之事故。若無重大事件請填「無」。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "勞動安全",
+        "category": "職業安全"
+    },
+    "204": {
+        "name": "損失工作日數",
+        "description": "報告年度因職業傷害造成的損失工作日數(Lost Days)為何？此數值通常出現在職業安全統計表格中。",
+        "data_format": "decimal",
+        "unit": "日",
+        "precision": "0.01",
+        "aspect": "勞動安全",
+        "category": "職業安全"
+    },
+    "205": {
+        "name": "勞動法規違規與裁罰",
+        "description": "報告年度是否有違反勞動相關法規之情事？若有，請列出違規法條、違規內容與裁罰金額。相關法規包含：職業安全衛生法、勞動基準法、性別工作平等法等。格式範例：違反職業安全衛生法第6條，罰款新台幣10萬元。若無違規請填「無」。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "勞動安全",
+        "category": "法規遵循"
+    },
+    "206": {
+        "name": "政府補貼或獎勵",
+        "description": "報告年度是否接受政府補貼或獎勵計劃？若有，請說明計劃名稱與補貼金額。範例：經濟部工業局智慧製造補助計劃，補助金額新台幣500萬元。若無或未揭露請填「無」或「未揭露」。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "政府關係",
+        "category": "政府互動"
+    },
+    "207": {
+        "name": "燃煤使用量",
+        "description": "報告年度的燃煤使用量為何？請填寫數值與單位。燃煤包含煙煤、無煙煤、褐煤等。若公司不使用燃煤請填「0」或「不適用」。數值通常可在能源使用細項表格中找到。",
+        "data_format": "string",
+        "unit": "依報告書原始格式",
+        "precision": "NA",
+        "aspect": "環境",
+        "category": "能源使用"
+    },
+    "208": {
+        "name": "燃煤淘汰計劃",
+        "description": "公司是否有燃煤淘汰或減量計劃？若有，請說明目標年份與減量目標。範例：預計於2030年前完全淘汰燃煤使用。若不使用燃煤或無相關計劃請填「不適用」或「無」。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "氣候指標",
+        "category": "氣候行動"
+    },
+    "209": {
+        "name": "化石燃料轉型計劃",
+        "description": "公司是否有化石燃料整體轉型計劃？若有，請說明轉型目標與時程。化石燃料包含：煤炭、天然氣、石油及其衍生燃料。請說明公司如何減少對化石燃料的依賴，例如：提高再生能源佔比、改用低碳燃料等。若無相關計劃請填「無」。",
+        "data_format": "string",
+        "unit": "NA",
+        "precision": "NA",
+        "aspect": "氣候指標",
+        "category": "氣候行動"
+    }
 }
 
 # ==========================================
@@ -148,7 +236,7 @@ MANUFACTURING_COMMON_FIELDS = {
     },
     "64": {
         "name": "單位產品溫室氣體排放強度 (特定製程)",
-        "description": "針對高碳排產業(如水泥、鋼鐵、石化)，請擷取其關鍵產品(如乙烯、水泥熟料)的排放強度數據，若有多項產品請列舉",
+        "description": "選擇報告書中明確標示為「代表性產品」或「主要產品」的碳排放強度數值。若有多項產品，選營收佔比最高者。格式：「數值 單位 (產品名)」",
         "data_format": "string",
         "unit": "公噸CO2e/單位產品",
         "precision": "0.01",
@@ -157,7 +245,7 @@ MANUFACTURING_COMMON_FIELDS = {
     },
     "65": {
         "name": "產品製程類別或代表性產品名稱",
-        "description": "請明確填寫企業主要產品的製程類別或代表性產品名稱，例如：水泥（熟料、水泥成品）、玻璃（平板玻璃）、石化（乙烯、丙烯）等",
+        "description": "公司主要產品類別，限3項以內。格式：「產品1、產品2、產品3」。使用報告書中的原始名稱，不需加註解說明。",
         "data_format": "string",
         "unit": "NA",
         "precision": "NA",
@@ -826,6 +914,9 @@ def get_final_fields(company_industry: str) -> Dict:
 
     # 2. Scope 3 fields (universal)
     final_fields.update(SCOPE3_FIELDS)
+
+    # 2.5. Labor & Emissions fields (universal)
+    final_fields.update(LABOR_EMISSIONS_FIELDS)
 
     # 3. Classify industry
     industry_category = classify_industry(company_industry)
