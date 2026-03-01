@@ -382,16 +382,39 @@ class SheetsManager:
         except Exception as e:
             logger.error(f"Failed to delete results: {e}")
 
-    def append_results(self, results: List[Dict]) -> None:
+    def create_or_get_worksheet(self, tab_name: str) -> gspread.Worksheet:
+        """Create worksheet tab if it doesn't exist, or return existing one."""
         logger = get_logger()
+        try:
+            sheet = self.gc.open_by_key(OUTPUT_SHEET_ID)
+            try:
+                worksheet = sheet.worksheet(tab_name)
+                logger.info(f"Found existing worksheet: {tab_name}")
+            except gspread.WorksheetNotFound:
+                worksheet = sheet.add_worksheet(title=tab_name, rows=2000, cols=15)
+                headers = [
+                    '西元年份', '公司代碼', '公司簡稱', '欄位編號', '欄位名稱',
+                    '欄位數值', '欄位單位', '補充說明', '參考頁數', '處理時間'
+                ]
+                worksheet.append_row(headers)
+                logger.info(f"Created new worksheet: {tab_name}")
+            return worksheet
+        except Exception as e:
+            logger.error(f"Failed to create/get worksheet {tab_name}: {e}")
+            raise
+
+    def append_results(self, results: List[Dict], tab_name: str = None) -> None:
+        """Append results to Google Sheets. Uses OUTPUT_SHEET_NAME if tab_name not specified."""
+        logger = get_logger()
+        target_tab = tab_name if tab_name else OUTPUT_SHEET_NAME
         try:
             sheet = self.gc.open_by_key(OUTPUT_SHEET_ID)
 
             try:
-                worksheet = sheet.worksheet(OUTPUT_SHEET_NAME)
+                worksheet = sheet.worksheet(target_tab)
             except gspread.WorksheetNotFound:
                 worksheet = sheet.add_worksheet(
-                    title=OUTPUT_SHEET_NAME, rows=2000, cols=15
+                    title=target_tab, rows=2000, cols=15
                 )
                 headers = [
                     '西元年份', '公司代碼', '公司簡稱', '欄位編號', '欄位名稱',

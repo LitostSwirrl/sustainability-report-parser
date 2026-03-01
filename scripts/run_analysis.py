@@ -65,7 +65,8 @@ def process_companies(
     limit: int = None,
     company_code: str = None,
     dry_run: bool = False,
-    force: bool = False
+    force: bool = False,
+    tab_name: str = None
 ) -> None:
     """
     Process companies from Google Sheets.
@@ -77,6 +78,7 @@ def process_companies(
         company_code: Specific company code to process
         dry_run: If True, show what would be processed without making API calls
         force: If True, reprocess even completed companies
+        tab_name: Custom tab name for results output
     """
     logger = get_logger()
 
@@ -195,7 +197,7 @@ def process_companies(
 
             if results:
                 # Save to sheets
-                sheets_manager.append_results(results)
+                sheets_manager.append_results(results, tab_name=tab_name)
 
                 # Also save to local CSV backup (per-company + combined)
                 company_csv, combined_csv = sheets_manager.save_results_to_csv(
@@ -251,6 +253,11 @@ def main():
         action="store_true",
         help="Force reprocess even if already completed"
     )
+    parser.add_argument(
+        "--tab-name", "-t",
+        type=str,
+        help="Custom tab name for results output"
+    )
 
     args = parser.parse_args()
 
@@ -283,7 +290,8 @@ def main():
             limit=args.limit,
             company_code=args.company,
             dry_run=args.dry_run,
-            force=args.force
+            force=args.force,
+            tab_name=args.tab_name
         )
 
     except FileNotFoundError as e:

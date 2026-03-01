@@ -255,12 +255,33 @@ class FieldCollectionAnalyzer:
     def _build_field_collection_prompt(
         self,
         company_info: Dict[str, str],
-        final_fields: Dict
+        final_fields: Dict,
+        use_v2_sorting: bool = True
     ) -> str:
-        """Build the field collection analysis prompt - IDENTICAL to original notebook."""
+        """Build the field collection analysis prompt.
+
+        Args:
+            company_info: Company metadata
+            final_fields: Field definitions dictionary
+            use_v2_sorting: If True, use simple numeric sorting (V2 fields already in order)
+                          If False, use display_order for custom ordering (V1 backward compatibility)
+        """
         # Build field details
         fields_detail = ""
-        sorted_keys = sorted(final_fields.keys(), key=lambda x: int(x))
+
+        if use_v2_sorting:
+            # V2: Simple numeric sorting (fields 1-70 already in correct order)
+            sorted_keys = sorted(final_fields.keys(), key=lambda x: int(x))
+        else:
+            # V1: Sort by display_order if available, otherwise by field ID
+            # This allows GHG emission fields to be ordered: 類別1-3, 範疇三, 類別4-6, then Scope 3 categories
+            def sort_key(field_id: str) -> tuple:
+                field_info = final_fields[field_id]
+                display_order = field_info.get('display_order')
+                if display_order is not None:
+                    return (0, display_order, int(field_id))
+                return (1, 0, int(field_id))
+            sorted_keys = sorted(final_fields.keys(), key=sort_key)
 
         for field_id in sorted_keys:
             field_info = final_fields[field_id]
@@ -363,6 +384,54 @@ class FieldCollectionAnalyzer:
    - 類別 1 ～ 15 是 GHG Protocol 的分類方式，請特別區分。
    - 若所需要的數據在最後的 SASB / GRI 準則表就可以查得到，請直接引用。
 
+## 💧 水資源資料搜尋指引 (GRI 303)
+
+### GRI 303 常見位置：
+1. **GRI 對照表**：搜尋 GRI 303-3 (取水量)、303-4 (排水量)、303-5 (耗水量)
+2. **環境績效章節**：「水資源管理」「環境永續」「資源循環」章節
+3. **附錄 ESG 數據表**：環境數據統計表、環境績效摘要
+
+### 單位換算提醒：
+- 1 百萬公升 (ML) = 1,000 公噸 = 1,000 立方公尺 (m³)
+- 1 立方公尺 (m³) = 1 公噸（水的密度近似 1 kg/L）
+- 若報告書使用「度」通常指「立方公尺」
+
+### 常見水源分類（台灣報告書）：
+- 自來水 / 市水 / 第三方水源 (Third-party water)
+- 地下水 (Groundwater)
+- 地表水 / 河川水 (Surface water)
+- 雨水收集 (Rainwater)
+- 再生水 / 回收水 (Recycled water)
+
+## 🏦 金融業資料搜尋指引（永續金融評鑑 + WBA + PCAF）
+
+### 永續金融評鑑關鍵指標位置：
+1. **TCFD報告**：氣候情境分析、投融資碳排放、轉型風險評估
+2. **永續報告書附錄**：永續金融商品統計、ESG投資數據、放款組合分析
+3. **風險管理章節**：氣候風險管理、投融資組合碳排放盤查
+
+### 常見永續金融倡議縮寫：
+- **PRB**: Principles for Responsible Banking（責任銀行原則）
+- **PRI**: Principles for Responsible Investment（責任投資原則）
+- **PSI**: Principles for Sustainable Insurance（永續保險原則）
+- **NZBA**: Net-Zero Banking Alliance（淨零銀行聯盟）
+- **NZAMI**: Net-Zero Asset Managers Initiative（淨零資產管理倡議）
+- **PCAF**: Partnership for Carbon Accounting Financials（金融業碳核算夥伴關係）
+- **赤道原則**: Equator Principles（專案融資環境社會風險評估）
+
+### PCAF 數據品質分數說明：
+- Score 1: 使用客戶經查證的排放數據（最高品質）
+- Score 2: 使用客戶未經查證的排放數據
+- Score 3: 使用產業平均 × 實際生產數據
+- Score 4: 使用產業平均 × 營收數據
+- Score 5: 使用產業平均 × 資產數據（最低品質）
+
+### 永續金融商品分類：
+- **永續連結貸款 (SLL)**: 利率與借款人ESG績效掛鉤
+- **綠色貸款**: 用途限定於綠色專案
+- **永續發展債券**: 含綠色債券、社會債券、永續發展連結債券
+- **ESG主題基金**: 投資策略納入ESG因子
+
 ## 🔍 輸出格式要求
 
 請嚴格按照以下格式回答，每個欄位都要有明確的開始和結束標記：
@@ -409,7 +478,14 @@ class FieldCollectionAnalyzer:
     ) -> List[Dict]:
         """Parse field collection response from Gemini."""
         results = []
-        sorted_keys = sorted(final_fields.keys(), key=lambda x: int(x))
+        # Sort by display_order if available, otherwise by field ID
+        def sort_key(field_id: str) -> tuple:
+            field_info = final_fields[field_id]
+            display_order = field_info.get('display_order')
+            if display_order is not None:
+                return (0, display_order, int(field_id))
+            return (1, 0, int(field_id))
+        sorted_keys = sorted(final_fields.keys(), key=sort_key)
 
         for field_id in sorted_keys:
             start_marker = f"---欄位{field_id}開始---"
