@@ -97,8 +97,8 @@ Use the GRI index to locate all sections before reading body text:
 ### 欄位 39: 燃煤使用量
 - **Data Format:** string
 - **Unit:** 依報告書原始格式
-- **Description:** 報告年度的燃煤使用量。燃煤包含煙煤、無煙煤、褐煤等。若公司不使用燃煤請填「0」或「不適用」。數值通常可在能源使用細項表格中找到。
-- **Example output:** `12500 公噸` or `不適用`
+- **Description:** 報告年度的燃煤使用量。燃煤包含煙煤、無煙煤、褐煤等。若公司明確表示不使用燃煤（如「本公司無煤炭」或能源表完整列舉所有來源且無燃煤），填 `0`。若報告書未提及燃煤，留空。數值通常可在能源使用細項表格中找到。
+- **Example output:** `12500 公噸` or `0`
 
 ### 欄位 40: 燃煤淘汰計劃
 - **Data Format:** string
@@ -150,7 +150,7 @@ Use the GRI index to locate all sections before reading body text:
 ### 欄位 46: 是否達成政府用電大戶再生能源建置義務
 - **Data Format:** boolean
 - **Unit:** NA
-- **Description:** 如果有達到，通常報告書會寫「已達到/遠高於政府用電大戶條款所規定的10%」。若無法找到相關描述，判斷為 False（而非留空）。
+- **Description:** 如果有達到，通常報告書會寫「已達到/遠高於政府用電大戶條款所規定的10%」。判斷標準：True 表示已明確達成義務，False 表示公司明確表示未達成，留空表示報告書未提及或僅描述法規背景而未說明是否達成。注意：僅描述用電大戶條款內容（法規介紹）不等於已達成義務。
 
 ### 欄位 47: 是否取得RE100認證
 - **Data Format:** boolean
@@ -256,14 +256,14 @@ Use the GRI index to locate all sections before reading body text:
 ### 欄位 62: 勞動法規違規與裁罰
 - **Data Format:** string
 - **Unit:** NA
-- **Description:** 報告年度是否有違反勞動相關法規之情事（職業安全衛生法、勞動基準法、性別工作平等法等）？若有請列出違規法條、違規內容與裁罰金額。若無違規請填「無」。
-- **Example output:** `違反職業安全衛生法第6條，罰款新台幣10萬元` or `無`
+- **Description:** 報告年度是否有違反勞動相關法規之情事（職業安全衛生法、勞動基準法、性別工作平等法等）？若有請列出違規法條、違規內容與裁罰金額。若公司明確表示無違規事件，填 `0`。若報告書未提及，留空。**搜尋位置：** 法規遵循章節、GRI 2-27 揭露、合規事件表、重大裁罰揭露、職業安全衛生章節。
+- **Example output:** `違反職業安全衛生法第6條，罰款新台幣10萬元` or `0`
 
 ### 欄位 63: 政府補貼或獎勵
 - **Data Format:** string
 - **Unit:** NA
-- **Description:** 報告年度是否接受政府補貼或獎勵計劃？若有，請說明計劃名稱與補貼金額。若無或未揭露請填「無」或「未揭露」。
-- **Example output:** `經濟部能源局節能補助計劃，補助金額新台幣300萬元` or `未揭露`
+- **Description:** 報告年度是否接受政府補貼或獎勵計劃？若有，請說明計劃名稱與補貼金額。若未揭露，留空。**搜尋位置：** GRI 201-4 揭露、治理章節「取自政府之財務援助」表格、財務報表附註（IAS 20）、SASB附錄。此欄位通常不在環境章節，而在治理或財務章節。
+- **Example output:** `經濟部能源局節能補助計劃，補助金額新台幣300萬元`
 
 ### 欄位 64: 受傷、死亡比率
 - **Data Format:** string
@@ -361,9 +361,9 @@ The reported unit must be preserved exactly as it appears in the report:
 - If the report says「天然氣: 25.3 百萬立方公尺」→ write `天然氣: 25.3 百萬立方公尺; `
 - Do NOT convert these to a common unit — keep original units per item
 
-### Boolean judgment for labor fields
-- Field 46 (政府用電大戶): if no mention of meeting the 10% obligation, default to False (not blank), because the obligation is mandatory for qualifying companies and non-mention implies non-compliance
-- Field 47 (RE100): if not mentioned, leave blank (unlike field 46, this is a voluntary initiative)
+### Boolean judgment for energy fields
+- Field 46 (政府用電大戶): True if the report explicitly states the company has met the obligation. False if the report explicitly states the company has not met it. Blank if the report only describes the regulation without stating compliance. Merely describing the 用電大戶條款 content is NOT evidence of meeting the obligation.
+- Field 47 (RE100): True if the company is a confirmed RE100 member. False if the report discusses RE100 in a scenario/hypothetical context but the company is clearly not a member. Blank if RE100 is not mentioned at all.
 
 ### Numeric format for all fields
 - No thousand separators

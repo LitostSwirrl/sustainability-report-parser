@@ -77,11 +77,10 @@ This is the international standard used by some companies (especially those foll
 - **Data Format:** decimal
 - **Unit:** 公噸CO2e
 - **Precision:** 0.0001
-- **Description:** 溫室氣體排放量中，範疇三（其他間接排放）的總值。計算優先順序：
+- **Description:** 溫室氣體排放量中，範疇三（其他間接排放）的總值。**使用報告書揭露的合計值，不限台灣廠區。** 計算優先順序：
   1. 若公司直接給出範疇三總值，使用該數值
   2. 若公司給的是ISO類別三到類別六，請協助加總
   3. 若公司給的是GHG Protocol類別1到15，請協助加總
-  4. 若公司給的是個別工廠數值，請加總（國外工廠不計）
   若沒有2024年資料，請於補充說明註記並嘗試填入最近年度數值。
 - **Example output:** `450000.0000`
 
@@ -89,36 +88,49 @@ This is the international standard used by some companies (especially those foll
 - **Data Format:** decimal
 - **Unit:** 公噸CO2e
 - **Precision:** 0.0001
-- **Description:** ISO/CNS 14064-1**類別三**（運輸的間接溫室氣體排放）的值。此為台灣本土分類中的「類別三」，對應原料及產品的上下游運輸排放，不含海外廠。若公司未採用ISO分類，請留空。
+- **Description:** ISO/CNS 14064-1**類別三**（運輸的間接溫室氣體排放）的值。此為台灣本土分類中的「類別三」，對應原料及產品的上下游運輸排放。使用報告書揭露的合計值，不限台灣廠區。若公司未採用ISO分類，請留空。
 - **Note:** ISO 類別三 ≠ GHG Protocol Category 3。兩者意義不同，請勿混淆。
 
 ### 欄位 13: 類別四（值）
 - **Data Format:** decimal
 - **Unit:** 公噸CO2e
 - **Precision:** 0.0001
-- **Description:** ISO/CNS 14064-1**類別四**（組織使用的產品所產生的間接溫室氣體排放）的值，不含海外廠。若公司未採用ISO分類，或報告書未揭露，請留空（大多數公司未揭露此類別）。
+- **Description:** ISO/CNS 14064-1**類別四**（組織使用的產品所產生的間接溫室氣體排放）的值。使用報告書揭露的合計值，不限台灣廠區。若公司未採用ISO分類，或報告書未揭露，請留空（大多數公司未揭露此類別）。
 
 ### 欄位 14: 類別五（值）
 - **Data Format:** decimal
 - **Unit:** 公噸CO2e
 - **Precision:** 0.0001
-- **Description:** ISO/CNS 14064-1**類別五**（與組織的產品使用相關聯的間接溫室氣體排放）的值，不含海外廠。若公司未採用ISO分類，或報告書未揭露，請留空。
+- **Description:** ISO/CNS 14064-1**類別五**（與組織的產品使用相關聯的間接溫室氣體排放）的值。使用報告書揭露的合計值，不限台灣廠區。若公司未採用ISO分類，或報告書未揭露，請留空。
 
 ### 欄位 15: 類別六（值）
 - **Data Format:** decimal
 - **Unit:** 公噸CO2e
 - **Precision:** 0.0001
-- **Description:** ISO/CNS 14064-1**類別六**（由其他來源產生的間接溫室氣體排放）的值，不含海外廠。若公司未採用ISO分類，或報告書未揭露，請留空。
+- **Description:** ISO/CNS 14064-1**類別六**（由其他來源產生的間接溫室氣體排放）的值。使用報告書揭露的合計值，不限台灣廠區。若公司未採用ISO分類，或報告書未揭露，請留空。
 
 ---
 
 ## Extraction Rules (for this group)
 
-### Domestic vs. overseas facilities
-- Fields 9-15 collect **domestic (Taiwan) data only**
-- If the company provides a combined global total, check footnotes or table headers for whether it includes overseas
-- If the table clearly separates 台灣 vs. 海外, sum only the 台灣 rows
+### Boundary Scope by Field
+
+| Fields | Scope | Rule |
+|--------|-------|------|
+| 9-10 (Scope 1, 2) | **Domestic (Taiwan) only** | Sum only 台灣廠區; exclude 海外廠 |
+| 11 (Scope 3 total) | **Reported total (no geographic restriction)** | Use the company's disclosed Scope 3 total as-is |
+| 12-15 (ISO 類別三~六) | **Reported total (no geographic restriction)** | Use the company's disclosed category values as-is |
+
+### Domestic vs. overseas facilities (Fields 9-10 only)
+- Fields 9-10 collect **domestic (Taiwan) data only**
+- If the company provides a combined global total for Scope 1/2, check footnotes or table headers for whether it includes overseas
+- If the table clearly separates 台灣 vs. 海外, sum only the 台灣 rows for fields 9-10
 - If the report only provides a global figure with no breakdown, use it and note in 補充說明 that overseas may be included
+
+### Fields 11-15: Use reported totals
+- Fields 11-15 use the **company's reported total values** without geographic restriction
+- Do NOT attempt to subtract overseas facilities from these fields
+- If the report provides a Scope 3 total or ISO category totals, use them directly
 
 ### How to handle companies using GHG Protocol (not ISO 14064-1)
 - Fields 9-10 (Scope 1, Scope 2) apply under both systems — fill directly

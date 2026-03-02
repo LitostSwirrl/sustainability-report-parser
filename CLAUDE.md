@@ -76,9 +76,10 @@ Read the entire PDF sequentially in 20-page chunks:
 
 - See `docs/extraction_guidelines.md` for ALL formatting rules
 - See `docs/output_format.md` for result structure
-- Always include page references (p.X format)
+- Page references use **printed page number from the PDF footer/header** (the number visible on the page), NOT the PDF viewer position. If a page has no printed number (e.g., cover), use PDF viewer position and note it.
 - Numbers: no thousands separator, percentages as decimals
-- Empty fields: leave blank, never write 「無」or 「NA」
+- Empty fields: leave blank, never write 「無」or 「NA」or 「不適用」or 「未揭露」
+- Prefer directly reported values over self-calculation from component data
 
 ## Output JSON Format
 

@@ -275,38 +275,57 @@ BAT refers to the most effective techniques for preventing or reducing emissions
 **Description:** 單位產品能源消耗量 (GJ/公噸產品)。
 
 **Extraction rules:**
+- **Prefer the report's directly disclosed energy intensity/efficiency indicator.** Do NOT self-calculate from total energy ÷ total production when the report already provides an intensity figure.
 - Keywords: "製程能源效率", "單位能耗", "能源強度", "Energy Intensity", "GJ/tonne", "GJ/公噸"
 - Convert to GJ/公噸 if needed:
   - If reported in MJ/公噸: divide by 1,000
   - If reported in kWh/公噸: multiply by 0.0036
   - If reported in Mcal/公噸: multiply by 0.004184
 - Choose the same representative product as in 欄位 104-106
+- Revenue-based intensity (GJ/萬元) is only acceptable if no product-based indicator exists — note in 補充說明
 
 **Common pitfalls:**
 - Total site energy intensity (GJ/NTD or GJ/employee) is not the same as process energy intensity (GJ/公噸 product) — use process-level data
 - If the unit is per square metre or per piece (for electronics), record as-is and note the unit difference in 補充說明 since the field assumes GJ/公噸
+- Do NOT self-calculate intensity when a directly reported figure exists — the report's own calculation is authoritative
 
 ---
 
 ## Output Format
 
 ```
-欄位 101: [Value]
+---欄位101開始---
+欄位數值: [Value]
+欄位單位: [Unit]
 補充說明: [Definition used, data source, any calculation notes]
+參考頁數: [p.X or NA]
+---欄位101結束---
 
-欄位 102: [Value]
+---欄位102開始---
+欄位數值: [Value]
+欄位單位: [Unit]
 補充說明: [...]
+參考頁數: [p.X or NA]
+---欄位102結束---
 
 ...
 
-欄位 110: [Value]
+---欄位110開始---
+欄位數值: [Value]
+欄位單位: GJ/公噸
 補充說明: [...]
+參考頁數: [p.X or NA]
+---欄位110結束---
 ```
 
 If a field cannot be filled:
 ```
-欄位 [ID]: 無法填答
+---欄位[ID]開始---
+欄位數值:
+欄位單位: [Unit]
 補充說明: [Reason — not disclosed, wrong unit, scope mismatch, etc.]
+參考頁數: NA
+---欄位[ID]結束---
 ```
 
 ---
