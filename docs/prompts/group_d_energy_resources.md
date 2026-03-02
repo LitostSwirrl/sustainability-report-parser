@@ -7,6 +7,21 @@ This is the largest group. Work through each sub-section systematically.
 
 ---
 
+## Scope Boundary Rules
+
+Different sub-groups may have different reporting boundaries. Follow these rules:
+
+| Sub-Group | Fields | Boundary Rule |
+|-----------|--------|---------------|
+| 能源 (Energy) | F34-38, F42-43 | Company-wide reported total (all sites globally) |
+| 氣候行動 (Climate targets) | F48-55 | Company-wide |
+| 勞動 (Labor safety) | F58-65 | Taiwan operations preferred; if overseas data is included, note it in 補充說明 |
+| 水資源 (Water) | F66-72 | Taiwan operations preferred; if overseas data is included, note it in 補充說明 |
+
+When the report provides both Taiwan-only and consolidated figures, prefer Taiwan-only for labor/water fields unless only the consolidated figure is available. Always note the scope in 補充說明.
+
+---
+
 ## PDF Reading Strategy
 
 Use the GRI index to locate all sections before reading body text:
@@ -246,6 +261,7 @@ Use the GRI index to locate all sections before reading body text:
 - **Unit:** NA
 - **Description:** 報告年度因職業傷害造成的損失工作日數（Lost Days）。此數值通常出現在職業安全統計表格中。若只有一個數值，直接填入；若分男/女，列出格式「男X日、女X日」。
 - **Example output:** `248` or `男198日、女50日`
+- **搜尋清單:** ① GRI 403-9 表格中「損失天數」「損失日數」欄位 ② 職業安全統計表 ③ ESG 績效數據附錄中的安全指標表。注意：此欄位要的是**絕對損失天數**，不是嚴重度（Severity Rate）。
 
 ### 欄位 61: 重大職業安全意外事件
 - **Data Format:** string
@@ -256,13 +272,15 @@ Use the GRI index to locate all sections before reading body text:
 ### 欄位 62: 勞動法規違規與裁罰
 - **Data Format:** string
 - **Unit:** NA
-- **Description:** 報告年度是否有違反勞動相關法規之情事（職業安全衛生法、勞動基準法、性別工作平等法等）？若有請列出違規法條、違規內容與裁罰金額。若公司明確表示無違規事件，填 `0`。若報告書未提及，留空。**搜尋位置：** 法規遵循章節、GRI 2-27 揭露、合規事件表、重大裁罰揭露、職業安全衛生章節。
+- **Description:** 報告年度是否有違反勞動相關法規之情事（職業安全衛生法、勞動基準法、性別工作平等法等）？若有請列出違規法條、違規內容與裁罰金額。若公司明確表示無違規事件，填 `0`。若報告書未提及，留空。
+- **搜尋清單（務必逐一檢查）:** ① GRI 2-27 揭露 ② 法規遵循/合規章節 ③ 合規事件表/重大裁罰表 ④ SASB 附錄 ⑤ 職業安全衛生章節。**注意：此欄位通常不在環境章節。**
 - **Example output:** `違反職業安全衛生法第6條，罰款新台幣10萬元` or `0`
 
 ### 欄位 63: 政府補貼或獎勵
 - **Data Format:** string
 - **Unit:** NA
-- **Description:** 報告年度是否接受政府補貼或獎勵計劃？若有，請說明計劃名稱與補貼金額。若未揭露，留空。**搜尋位置：** GRI 201-4 揭露、治理章節「取自政府之財務援助」表格、財務報表附註（IAS 20）、SASB附錄。此欄位通常不在環境章節，而在治理或財務章節。
+- **Description:** 報告年度是否接受政府補貼或獎勵計劃？若有，請說明計劃名稱與補貼金額。若未揭露，留空。
+- **搜尋清單（務必逐一檢查）:** ① GRI 201-4 揭露 ② 治理章節「取自政府之財務援助」表格 ③ 財務報表附註（IAS 20 政府補助） ④ SASB 附錄 ⑤ 公司治理章節。**注意：此欄位通常不在環境章節，而在治理或財務章節。**
 - **Example output:** `經濟部能源局節能補助計劃，補助金額新台幣300萬元`
 
 ### 欄位 64: 受傷、死亡比率
@@ -364,6 +382,18 @@ The reported unit must be preserved exactly as it appears in the report:
 ### Boolean judgment for energy fields
 - Field 46 (政府用電大戶): True if the report explicitly states the company has met the obligation. False if the report explicitly states the company has not met it. Blank if the report only describes the regulation without stating compliance. Merely describing the 用電大戶條款 content is NOT evidence of meeting the obligation.
 - Field 47 (RE100): True if the company is a confirmed RE100 member. False if the report discusses RE100 in a scenario/hypothetical context but the company is clearly not a member. Blank if RE100 is not mentioned at all.
+
+### 認證/倡議布林值例外規則 (Certification Boolean Exceptions)
+
+以下欄位若報告書**完全未提及**，應填 `False`（非留空），因為已達成者必會揭露：
+
+| 欄位 | 邏輯 |
+|------|------|
+| F32 (範疇三減量目標) | 已設定者必會揭露 → 未提及 = 未設定 = `False` |
+| F47 (RE100) | 已加入者必會揭露 → 未提及 = 未加入 = `False` |
+| F48 (再生能源使用目標) | 已設定者必會揭露 → 未提及 = 未設定 = `False` |
+
+注意：F51（節能目標）不適用此規則，因公司可能有節能目標但未在報告書中明確揭露。
 
 ### Numeric format for all fields
 - No thousand separators

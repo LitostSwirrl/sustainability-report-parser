@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Merge all group JSON results for a company into a single CSV.
-Optionally push the merged data to Google Sheets.
+Optionally push the merged data to the local xlsx spreadsheet.
 
 Usage:
     python scripts/merge_groups.py 2330 2024
@@ -11,7 +11,6 @@ Usage:
 """
 
 import sys
-import os
 import csv
 import json
 import argparse
@@ -23,13 +22,14 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import OUTPUT_DIR, OUTPUT_SHEET_ID, OUTPUT_SHEET_NAME
+from src.config import OUTPUT_DIR, OUTPUT_SHEET_NAME
 from src.utils import setup_logging, get_logger
+from src.xlsx_manager import XlsxManager
 
 # Results directory where group JSON files are stored
 RESULTS_DIR = Path(OUTPUT_DIR) / "results"
 
-# Column order matching Google Sheets output format (same as SheetsManager)
+# Column order matching xlsx output format (same as XlsxManager)
 SHEET_HEADERS = [
     "西元年份",
     "公司代碼",
@@ -42,36 +42,6 @@ SHEET_HEADERS = [
     "參考頁數",
     "處理時間",
 ]
-
-
-def setup_google_auth():
-    """
-    Setup Google Sheets authentication using service account credentials.
-
-    Returns:
-        Authenticated gspread client, or None if credentials are missing.
-    """
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds_path = os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            str(Path(__file__).parent.parent / "credentials.json"),
-        )
-        if not Path(creds_path).exists():
-            return None
-        creds = Credentials.from_service_account_file(str(creds_path), scopes=scopes)
-        return gspread.authorize(creds)
-    except ImportError:
-        return None
-    except Exception as exc:
-        get_logger().warning(f"Google auth failed: {exc}")
-        return None
 
 
 def find_group_files(
@@ -274,53 +244,6 @@ def write_combined_csv(
     return str(csv_path)
 
 
-def write_rows_to_sheets(
-    gc,
-    rows: list[list[str]],
-    tab_name: Optional[str] = None,
-) -> int:
-    """
-    Append merged rows to Google Sheets, creating the worksheet if needed.
-
-    Args:
-        gc: Authenticated gspread client.
-        rows: List of sheet rows to append.
-        tab_name: Target worksheet tab name. Defaults to OUTPUT_SHEET_NAME.
-
-    Returns:
-        Number of rows written.
-
-    Raises:
-        Exception: Propagates gspread exceptions after logging.
-    """
-    import gspread
-
-    logger = get_logger()
-    target_tab = tab_name or OUTPUT_SHEET_NAME
-
-    try:
-        sheet = gc.open_by_key(OUTPUT_SHEET_ID)
-    except Exception as exc:
-        logger.error(f"Cannot open spreadsheet {OUTPUT_SHEET_ID}: {exc}")
-        raise
-
-    try:
-        worksheet = sheet.worksheet(target_tab)
-        logger.info(f"Found existing worksheet: {target_tab}")
-    except gspread.WorksheetNotFound:
-        worksheet = sheet.add_worksheet(title=target_tab, rows=5000, cols=15)
-        worksheet.append_row(SHEET_HEADERS)
-        logger.info(f"Created new worksheet: {target_tab}")
-
-    if not rows:
-        logger.warning("No rows to write to Sheets")
-        return 0
-
-    worksheet.append_rows(rows)
-    logger.info(f"Appended {len(rows)} rows to '{target_tab}'")
-    return len(rows)
-
-
 def determine_missing_groups(
     expected_groups: Optional[list[str]],
     found_groups: list[str],
@@ -374,14 +297,14 @@ def main() -> None:
         "--write-sheets",
         "-s",
         action="store_true",
-        help="Also push merged results to Google Sheets",
+        help="Also push merged results to the local xlsx spreadsheet",
     )
     parser.add_argument(
         "--tab-name",
         "-t",
         type=str,
         default=None,
-        help=f"Google Sheets tab name for --write-sheets (default: {OUTPUT_SHEET_NAME})",
+        help=f"xlsx tab name for --write-sheets (default: {OUTPUT_SHEET_NAME})",
     )
     parser.add_argument(
         "--results-dir",
@@ -498,34 +421,23 @@ def main() -> None:
         errors.append(msg)
         csv_path = None
 
-    # 5. Optionally write to Sheets
-    sheets_written = 0
+    # 5. Optionally write to xlsx
+    xlsx_written = 0
     if args.write_sheets:
-        gc = setup_google_auth()
-        if gc is None:
-            msg = (
-                "Google Sheets credentials not available. "
-                "Cannot write to Sheets. Ensure credentials.json exists."
+        try:
+            manager = XlsxManager()
+            target_tab = args.tab_name or OUTPUT_SHEET_NAME
+            xlsx_written = manager.append_rows_to_tab(
+                target_tab, SHEET_HEADERS, all_rows
             )
+            print(
+                f"xlsx written: {xlsx_written} rows -> "
+                f"tab '{target_tab}'"
+            )
+        except Exception as exc:
+            msg = f"Failed to write to xlsx: {exc}"
             logger.error(msg)
             errors.append(msg)
-        else:
-            try:
-                sheets_written = write_rows_to_sheets(
-                    gc, all_rows, tab_name=args.tab_name
-                )
-                print(
-                    f"Sheets written: {sheets_written} rows -> "
-                    f"tab '{args.tab_name or OUTPUT_SHEET_NAME}'"
-                )
-                print(
-                    f"Spreadsheet URL: "
-                    f"https://docs.google.com/spreadsheets/d/{OUTPUT_SHEET_ID}"
-                )
-            except Exception as exc:
-                msg = f"Failed to write to Google Sheets: {exc}"
-                logger.error(msg)
-                errors.append(msg)
 
     # 6. Final summary
     print(f"\n{'='*60}")
@@ -538,7 +450,7 @@ def main() -> None:
     if csv_path:
         print(f"Output CSV:       {csv_path}")
     if args.write_sheets:
-        print(f"Sheets rows:      {sheets_written}")
+        print(f"xlsx rows:        {xlsx_written}")
     if missing_groups:
         print(f"Missing groups:   {', '.join(missing_groups)} (data may be incomplete)")
     if stats["failed_groups"]:

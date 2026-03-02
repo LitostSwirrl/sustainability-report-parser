@@ -4,7 +4,7 @@
 
 This project extracts 72-140 ESG fields from sustainability reports (永續報告書).
 **Claude Code reads PDFs directly**, extracts structured data following documented
-guidelines, and writes results to Google Sheets via utility scripts.
+guidelines, and writes results to a local xlsx spreadsheet via utility scripts.
 
 ## Quick Start (for a Claude Code session)
 
@@ -23,7 +23,7 @@ python scripts/list_companies.py --format table
 # 5. Save results as JSON
 #    → output/results/{company_code}_{year}_group_{X}.json
 
-# 6. Write to Sheets
+# 6. Write to xlsx
 python scripts/write_group_results.py output/results/2330_2024_group_a.json
 
 # 7. Merge all groups for a company
@@ -135,15 +135,18 @@ Read the entire PDF sequentially in 20-page chunks:
 │       └── group_i_finance.md
 ├── src/                                   # Core modules (legacy + utils)
 │   ├── config.py
+│   ├── xlsx_manager.py                    # Local xlsx read/write (active workflow)
 │   ├── field_definitions.py               # Source of truth (125KB)
 │   ├── analyzer.py                        # Legacy Gemini analyzer
-│   ├── pdf_processor.py                   # Sheets/Cache/PDF utils
+│   ├── pdf_processor.py                   # Sheets/Cache/PDF utils (legacy)
 │   └── utils.py
 ├── scripts/
-│   ├── list_companies.py                  # List companies from Sheets
+│   ├── list_companies.py                  # List companies from xlsx
 │   ├── check_progress.py                  # Show extraction progress
-│   ├── write_group_results.py             # Write JSON → Sheets
+│   ├── publish_to_xlsx.py                 # Publish CSV results → xlsx
+│   ├── write_group_results.py             # Write JSON → xlsx
 │   ├── merge_groups.py                    # Merge group JSONs
+│   ├── publish_to_sheets.py              # Legacy: publish to Google Sheets
 │   └── run_analysis.py                    # Legacy Gemini batch
 ├── analysis/pdfs/                         # Place PDFs here
 ├── output/results/                        # Per-company group JSONs
@@ -167,5 +170,6 @@ as a fallback. Tag `pre-revamp-backup` marks the last full Gemini-era state.
 
 - **Runtime:** Python 3.10+
 - **AI:** Claude Code (agentic) + Gemini API (legacy fallback)
-- **Storage:** Google Sheets API, local JSON/CSV
+- **Storage:** Local xlsx (`LLM 解析結果.xlsx` via openpyxl), local JSON/CSV
 - **PDF:** Claude Code reads PDFs directly
+- **Legacy:** Google Sheets API (gspread) — used by legacy scripts only

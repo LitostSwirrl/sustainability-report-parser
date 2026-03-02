@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Check extraction progress across Claude Code sessions.
-Reads output/results/ directory and optionally Google Sheets to show status.
+Reads output/results/ directory and the local xlsx spreadsheet to show status.
 
 Usage:
     python scripts/check_progress.py
@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import OUTPUT_DIR
 from src.utils import setup_logging, get_logger
+from src.xlsx_manager import XlsxManager
 
 # Where group JSON results are stored
 RESULTS_DIR = Path(OUTPUT_DIR) / "results"
@@ -34,73 +35,6 @@ RESULT_FILENAME_RE = re.compile(
     r"^(?P<code>[^_]+)_(?P<year>\d{4})_group_(?P<group>.+)\.json$",
     re.IGNORECASE,
 )
-
-
-def setup_google_auth():
-    """
-    Setup Google Sheets authentication using service account credentials.
-
-    Returns:
-        Authenticated gspread client, or None if credentials are missing.
-    """
-    try:
-        import os
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive.readonly",
-        ]
-        creds_path = os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            str(Path(__file__).parent.parent / "credentials.json"),
-        )
-        if not Path(creds_path).exists():
-            return None
-        creds = Credentials.from_service_account_file(str(creds_path), scopes=scopes)
-        return gspread.authorize(creds)
-    except ImportError:
-        return None
-    except Exception:
-        return None
-
-
-def load_company_list_from_sheets(gc) -> list[dict]:
-    """
-    Load the full company list from Google Sheets.
-
-    Args:
-        gc: Authenticated gspread client.
-
-    Returns:
-        List of dicts with keys: company_code, company_name, year, industry.
-    """
-    logger = get_logger()
-    try:
-        from src.config import COMPANY_LIST_SHEET_ID, COMPANY_LIST_SHEET_NAME
-
-        sheet = gc.open_by_key(COMPANY_LIST_SHEET_ID)
-        worksheet = sheet.worksheet(COMPANY_LIST_SHEET_NAME)
-        data = worksheet.get_all_records()
-        companies = []
-        for row in data:
-            flag = str(row.get("待分析", "")).strip().upper()
-            if flag not in ("TRUE", "1", "YES", "Y"):
-                continue
-            companies.append(
-                {
-                    "company_code": str(row.get("公司代碼", "")).strip(),
-                    "company_name": str(row.get("公司簡稱", "")).strip(),
-                    "year": str(row.get("年度", "")).strip(),
-                    "industry": str(row.get("產業別", "")).strip(),
-                }
-            )
-        logger.info(f"Loaded {len(companies)} companies from Sheets")
-        return companies
-    except Exception as exc:
-        logger.warning(f"Could not load company list from Sheets: {exc}")
-        return []
 
 
 def scan_result_files(
@@ -346,7 +280,7 @@ def main() -> None:
     parser.add_argument(
         "--no-sheets",
         action="store_true",
-        help="Skip Google Sheets lookup (use local files only)",
+        help="Skip xlsx company list lookup (use local result files only)",
     )
     parser.add_argument(
         "--results-dir",
@@ -382,20 +316,31 @@ def main() -> None:
     )
     logger.info(f"Found {len(found)} (company, year) pairs in {results_dir}")
 
-    # 2. Optionally load company list from Sheets for cross-referencing
+    # 2. Optionally load company list from xlsx for cross-referencing
     company_list: list[dict] = []
     if not args.no_sheets:
-        gc = setup_google_auth()
-        if gc is not None:
-            company_list = load_company_list_from_sheets(gc)
-            # Apply CLI filters to company list too
-            if args.year:
-                company_list = [c for c in company_list if c["year"] == args.year]
+        try:
+            manager = XlsxManager()
+            full_list = manager.get_company_list(
+                filter_to_analyze=True,
+                year=args.year,
+            )
+            # Map to the minimal shape expected by build_progress_report
+            company_list = [
+                {
+                    "company_code": c["company_code"],
+                    "company_name": c["company_name"],
+                    "year": c["year"],
+                    "industry": c["industry"],
+                }
+                for c in full_list
+            ]
             if args.company:
                 company_list = [c for c in company_list if c["company_code"] == args.company]
-        else:
+            logger.info(f"Loaded {len(company_list)} companies from xlsx")
+        except (FileNotFoundError, ValueError) as exc:
             logger.warning(
-                "Google Sheets credentials not found. Cross-referencing skipped. "
+                f"xlsx company list unavailable: {exc}. Cross-referencing skipped. "
                 "Use --no-sheets to suppress this warning."
             )
 
@@ -421,8 +366,8 @@ def main() -> None:
         print(f"\nResults directory: {results_dir}")
         if not company_list and not args.no_sheets:
             print(
-                "Note: Company list from Sheets not available. "
-                "Run with --no-sheets to suppress Sheets lookup."
+                "Note: Company list from xlsx not available. "
+                "Run with --no-sheets to suppress xlsx lookup."
             )
 
 

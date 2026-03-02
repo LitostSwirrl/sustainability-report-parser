@@ -16,7 +16,7 @@ load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # ===========================================
-# Google Sheets Configuration
+# Google Sheets Configuration (legacy scripts only)
 # ===========================================
 COMPANY_LIST_SHEET_ID = os.getenv(
     "COMPANY_LIST_SHEET_ID",
@@ -46,6 +46,12 @@ OUTPUT_DIR = PROJECT_ROOT / "output"
 CACHE_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+# ===========================================
+# Local xlsx Configuration (active workflow)
+# ===========================================
+XLSX_PATH = PROJECT_ROOT / "LLM 解析結果.xlsx"
+XLSX_COMPANY_LIST_TAB = "raw_報告書清單"
 
 # ===========================================
 # Logging Configuration

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-List companies from Google Sheets for Claude Code workflow.
+List companies from the local xlsx record spreadsheet for Claude Code workflow.
 Outputs JSON with company info: code, name, industry, year, file link, status.
 
 Usage:
@@ -12,7 +12,6 @@ Usage:
 """
 
 import sys
-import os
 import json
 import argparse
 import logging
@@ -22,112 +21,15 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import (
-    COMPANY_LIST_SHEET_ID,
-    COMPANY_LIST_SHEET_NAME,
-    OUTPUT_SHEET_ID,
-    OUTPUT_SHEET_NAME,
-    OUTPUT_DIR,
-)
+from src.config import OUTPUT_DIR
 from src.utils import setup_logging, get_logger
+from src.xlsx_manager import XlsxManager
 
-# Fallback CSV paths to check when Sheets is unavailable
+# Fallback CSV paths to check when xlsx is unavailable
 CACHE_CSV_CANDIDATES = [
     Path(__file__).parent.parent / "cache" / "company_list.csv",
     Path(__file__).parent.parent / "output" / "company_list.csv",
 ]
-
-
-def setup_google_auth():
-    """
-    Setup Google Sheets authentication using service account credentials.
-
-    Returns:
-        Authenticated gspread client, or None if credentials are missing.
-    """
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive.readonly",
-        ]
-        creds_path = os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            str(Path(__file__).parent.parent / "credentials.json"),
-        )
-        if not Path(creds_path).exists():
-            return None
-        creds = Credentials.from_service_account_file(str(creds_path), scopes=scopes)
-        return gspread.authorize(creds)
-    except ImportError:
-        return None
-    except Exception:
-        return None
-
-
-def load_companies_from_sheets(
-    gc,
-    filter_to_analyze: bool = True,
-    year: Optional[str] = None,
-    industry: Optional[str] = None,
-) -> list[dict]:
-    """
-    Load company list from Google Sheets and apply optional filters.
-
-    Args:
-        gc: Authenticated gspread client.
-        filter_to_analyze: If True, only return rows where 待分析 == TRUE.
-        year: Filter by 年度 value (e.g. "2024").
-        industry: Filter by 產業別 value (e.g. "金融業").
-
-    Returns:
-        List of company dicts with normalized keys.
-    """
-    logger = get_logger()
-    try:
-        sheet = gc.open_by_key(COMPANY_LIST_SHEET_ID)
-        worksheet = sheet.worksheet(COMPANY_LIST_SHEET_NAME)
-        data = worksheet.get_all_records()
-        logger.info(f"Loaded {len(data)} rows from Sheets")
-    except Exception as exc:
-        logger.error(f"Failed to read from Google Sheets: {exc}")
-        return []
-
-    companies = []
-    for row in data:
-        if filter_to_analyze:
-            flag = str(row.get("待分析", "")).strip().upper()
-            if flag not in ("TRUE", "1", "YES", "Y"):
-                continue
-
-        year_val = str(row.get("年度", "")).strip()
-        industry_val = str(row.get("產業別", "")).strip()
-
-        if year and year_val != str(year):
-            continue
-        if industry and industry_val != industry:
-            continue
-
-        companies.append(
-            {
-                "company_code": str(row.get("公司代碼", "")).strip(),
-                "company_name": str(row.get("公司簡稱", "")).strip(),
-                "full_name": str(row.get("公司全名", "")).strip(),
-                "industry": industry_val,
-                "market": str(row.get("市場別", "")).strip(),
-                "year": year_val,
-                "file_link": str(row.get("檔案連結", "")).strip(),
-                "file_size_mb": str(row.get("檔案大小(MB)", "")).strip(),
-                "download_status": str(row.get("下載狀態", "")).strip(),
-                "to_analyze": str(row.get("待分析", "")).strip(),
-                "notes": str(row.get("備註", "")).strip(),
-                "last_updated": str(row.get("最後更新時間", "")).strip(),
-            }
-        )
-
-    return companies
 
 
 def load_companies_from_csv(
@@ -243,7 +145,7 @@ def format_as_table(companies: list[dict]) -> str:
 def main() -> None:
     """Main entry point for list_companies script."""
     parser = argparse.ArgumentParser(
-        description="List companies from Google Sheets for Claude Code workflow"
+        description="List companies from the local xlsx spreadsheet for Claude Code workflow"
     )
     parser.add_argument(
         "--year",
@@ -293,19 +195,18 @@ def main() -> None:
     companies: list[dict] = []
     source = "unknown"
 
-    # 1. Try Google Sheets
-    gc = setup_google_auth()
-    if gc is not None:
-        logger.info("Google authentication successful, loading from Sheets")
-        companies = load_companies_from_sheets(
-            gc,
+    # 1. Try local xlsx
+    try:
+        manager = XlsxManager()
+        companies = manager.get_company_list(
             filter_to_analyze=filter_to_analyze,
             year=args.year,
             industry=args.industry,
         )
-        source = "google_sheets"
-    else:
-        logger.warning("Google Sheets unavailable, falling back to cached CSV")
+        source = "xlsx"
+        logger.info(f"Loaded {len(companies)} companies from xlsx")
+    except (FileNotFoundError, ValueError) as exc:
+        logger.warning(f"xlsx unavailable: {exc}, falling back to cached CSV")
 
     # 2. Fallback to cached CSV
     if not companies:
@@ -323,14 +224,14 @@ def main() -> None:
                     break
 
     if not companies:
-        logger.error("No company data available from Sheets or cached CSV")
+        logger.error("No company data available from xlsx or cached CSV")
         # Still output valid JSON so callers can detect the empty state
         output = {
             "source": source,
             "count": 0,
             "filters": {"year": args.year, "industry": args.industry, "all": args.all},
             "companies": [],
-            "error": "No data source available. Ensure credentials.json exists or a cached CSV is present.",
+            "error": "No data source available. Ensure 'LLM 解析結果.xlsx' exists or a cached CSV is present.",
         }
         print(json.dumps(output, ensure_ascii=False, indent=2))
         sys.exit(1)

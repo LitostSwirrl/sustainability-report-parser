@@ -65,3 +65,10 @@ cache/
 
 # PDF files (may be large)
 *.pdf
+
+# Data CSV exports (derived from xlsx, not source of truth)
+LLM 解析結果 - *.csv
+欄位蒐集結果 *.csv
+
+# xlsx backup files created by XlsxManager
+*.bak

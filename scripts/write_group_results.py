@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Write extraction results from a group JSON file to Google Sheets and CSV backup.
+Write extraction results from a group JSON file to the local xlsx and CSV backup.
 
 Usage:
     python scripts/write_group_results.py output/results/2330_2024_group_a.json
@@ -9,7 +9,6 @@ Usage:
 """
 
 import sys
-import os
 import csv
 import json
 import argparse
@@ -21,10 +20,11 @@ from typing import Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import OUTPUT_DIR, OUTPUT_SHEET_ID, OUTPUT_SHEET_NAME
+from src.config import OUTPUT_DIR, OUTPUT_SHEET_NAME
 from src.utils import setup_logging, get_logger
+from src.xlsx_manager import XlsxManager
 
-# Expected output column order matching SheetsManager.append_results
+# Expected output column order matching XlsxManager.append_rows_to_tab
 SHEET_HEADERS = [
     "西元年份",
     "公司代碼",
@@ -37,36 +37,6 @@ SHEET_HEADERS = [
     "參考頁數",
     "處理時間",
 ]
-
-
-def setup_google_auth():
-    """
-    Setup Google Sheets authentication using service account credentials.
-
-    Returns:
-        Authenticated gspread client, or None if credentials are missing.
-    """
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
-
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds_path = os.getenv(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            str(Path(__file__).parent.parent / "credentials.json"),
-        )
-        if not Path(creds_path).exists():
-            return None
-        creds = Credentials.from_service_account_file(str(creds_path), scopes=scopes)
-        return gspread.authorize(creds)
-    except ImportError:
-        return None
-    except Exception as exc:
-        get_logger().warning(f"Google auth failed: {exc}")
-        return None
 
 
 def load_group_json(json_path: Path) -> dict:
@@ -110,7 +80,7 @@ def convert_fields_to_sheet_rows(
     processed_at: Optional[str] = None,
 ) -> list[list[str]]:
     """
-    Convert group JSON data into rows matching the Google Sheets column order.
+    Convert group JSON data into rows matching the xlsx output column order.
 
     Args:
         data: Parsed group JSON dict.
@@ -141,56 +111,6 @@ def convert_fields_to_sheet_rows(
         rows.append(row)
 
     return rows
-
-
-def write_to_sheets(
-    gc,
-    rows: list[list[str]],
-    tab_name: Optional[str] = None,
-) -> int:
-    """
-    Append rows to the Google Sheets output tab.
-
-    Creates the worksheet if it does not exist. Reuses the SheetsManager
-    column order (SHEET_HEADERS).
-
-    Args:
-        gc: Authenticated gspread client.
-        rows: List of row lists to append.
-        tab_name: Target worksheet tab name. Defaults to OUTPUT_SHEET_NAME.
-
-    Returns:
-        Number of rows written.
-
-    Raises:
-        Exception: Propagates gspread exceptions after logging.
-    """
-    import gspread
-
-    logger = get_logger()
-    target_tab = tab_name or OUTPUT_SHEET_NAME
-
-    try:
-        sheet = gc.open_by_key(OUTPUT_SHEET_ID)
-    except Exception as exc:
-        logger.error(f"Cannot open spreadsheet {OUTPUT_SHEET_ID}: {exc}")
-        raise
-
-    try:
-        worksheet = sheet.worksheet(target_tab)
-        logger.info(f"Found existing worksheet: {target_tab}")
-    except gspread.WorksheetNotFound:
-        worksheet = sheet.add_worksheet(title=target_tab, rows=5000, cols=15)
-        worksheet.append_row(SHEET_HEADERS)
-        logger.info(f"Created new worksheet: {target_tab}")
-
-    if not rows:
-        logger.warning("No rows to write")
-        return 0
-
-    worksheet.append_rows(rows)
-    logger.info(f"Appended {len(rows)} rows to '{target_tab}'")
-    return len(rows)
 
 
 def write_to_csv(
@@ -250,7 +170,7 @@ def preview_rows(rows: list[list[str]], max_rows: int = 5) -> None:
         rows: List of row lists.
         max_rows: Maximum rows to display.
     """
-    print(f"\n[DRY RUN] Would write {len(rows)} rows to Sheets and CSV.")
+    print(f"\n[DRY RUN] Would write {len(rows)} rows to xlsx and CSV.")
     print(f"Headers: {SHEET_HEADERS}")
     print(f"\nFirst {min(max_rows, len(rows))} rows:")
     for i, row in enumerate(rows[:max_rows]):
@@ -262,7 +182,7 @@ def preview_rows(rows: list[list[str]], max_rows: int = 5) -> None:
 def main() -> None:
     """Main entry point for write_group_results script."""
     parser = argparse.ArgumentParser(
-        description="Write group JSON extraction results to Google Sheets and CSV"
+        description="Write group JSON extraction results to xlsx and CSV"
     )
     parser.add_argument(
         "json_file",
@@ -274,7 +194,7 @@ def main() -> None:
         "-t",
         type=str,
         default=None,
-        help=f"Google Sheets tab name (default: {OUTPUT_SHEET_NAME})",
+        help=f"xlsx tab name (default: {OUTPUT_SHEET_NAME})",
     )
     parser.add_argument(
         "--dry-run",
@@ -285,12 +205,12 @@ def main() -> None:
     parser.add_argument(
         "--no-sheets",
         action="store_true",
-        help="Skip Google Sheets; only write the CSV backup",
+        help="Skip xlsx write; only write the CSV backup",
     )
     parser.add_argument(
         "--no-csv",
         action="store_true",
-        help="Skip CSV backup; only write to Google Sheets",
+        help="Skip CSV backup; only write to xlsx",
     )
     parser.add_argument(
         "--verbose",
@@ -345,27 +265,20 @@ def main() -> None:
         logger.warning("No fields found in group JSON. Nothing to write.")
         sys.exit(0)
 
-    sheets_written = 0
+    xlsx_written = 0
     csv_written = False
     errors: list[str] = []
 
-    # Write to Google Sheets
+    # Write to xlsx
     if not args.no_sheets:
-        gc = setup_google_auth()
-        if gc is None:
-            msg = (
-                "Google Sheets credentials not available. "
-                "Skipping Sheets write. Use --no-sheets to suppress this warning."
-            )
-            logger.warning(msg)
+        try:
+            manager = XlsxManager()
+            target_tab = args.tab_name or OUTPUT_SHEET_NAME
+            xlsx_written = manager.append_rows_to_tab(target_tab, SHEET_HEADERS, rows)
+        except Exception as exc:
+            msg = f"Failed to write to xlsx: {exc}"
+            logger.error(msg)
             errors.append(msg)
-        else:
-            try:
-                sheets_written = write_to_sheets(gc, rows, tab_name=args.tab_name)
-            except Exception as exc:
-                msg = f"Failed to write to Google Sheets: {exc}"
-                logger.error(msg)
-                errors.append(msg)
 
     # Write to CSV backup
     if not args.no_csv:
@@ -393,7 +306,7 @@ def main() -> None:
     print(f"Fields:         {field_count}")
     print(f"Rows prepared:  {len(rows)}")
     if not args.no_sheets:
-        print(f"Sheets written: {sheets_written} rows -> tab '{args.tab_name or OUTPUT_SHEET_NAME}'")
+        print(f"xlsx written:   {xlsx_written} rows -> tab '{args.tab_name or OUTPUT_SHEET_NAME}'")
     if not args.no_csv and csv_written:
         print(f"CSV (per-group):  {group_csv}")
         print(f"CSV (combined):   {combined_csv}")
@@ -403,7 +316,7 @@ def main() -> None:
             print(f"  - {e}")
     print(f"{'='*60}")
 
-    if errors and sheets_written == 0 and not csv_written:
+    if errors and xlsx_written == 0 and not csv_written:
         sys.exit(1)
 
 
